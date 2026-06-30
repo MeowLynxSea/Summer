@@ -23,7 +23,7 @@ class VisionProcessor:
         cv2.createTrackbar("Confirm Frm", self.window_name, config.UI_DEF_CONFIRM_FRM, 20, lambda x: None)
         cv2.createTrackbar("Lost Frm", self.window_name, config.UI_DEF_LOST_FRM, 30, lambda x: None)
 
-        cv2.createTrackbar("Blur K", self.window_name, config.UI_DEF_BLUR_R, 5, lambda x: None)
+        cv2.createTrackbar("Blur K", self.window_name, config.UI_DEF_BLUR_R, 20, lambda x: None)
 
     def process(self, bgr_img, d_arr):
         hue_tol = cv2.getTrackbarPos("Hue Tol", self.window_name)

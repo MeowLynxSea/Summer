@@ -31,14 +31,15 @@ APPLE_SHELL_RESOLUTION = 12          # 球的网格分辨率
 
 # =================  Tracker 配置 =================
 MAX_APPLES = 5                       # 追踪目标数
-TRACKER_DIST_THRESH = 0.03           # 匹配距离阈值
+TRACKER_DIST_THRESH = 0.08           # 匹配距离阈值
 TRACKER_EMA_ALPHA = 0.6              # 平滑系数 (0~1, 越大越相信新观测值)
+PREDICT_DAMPING = 0.4               # 预测阻尼系数 (0~1, 越大越相信旧预测值)
 
 # ================= 图像处理过滤配置 =================
 DEPTH_Z_MIN = 0.1                    # 有效深度下限
 DEPTH_Z_MAX = 2.5                    # 有效深度上限
 
-UI_DEF_BLUR_R = 5
+UI_DEF_BLUR_R = 10
 GAUSSIAN_KERNEL = (UI_DEF_BLUR_R, UI_DEF_BLUR_R)             # 高斯滤波核大小
 MORPH_OPEN_KERNEL = (3, 3)           # 开运算核大小 (去噪点)
 MORPH_CLOSE_KERNEL = (5, 5)          # 闭运算核大小 (填补空洞)
@@ -46,9 +47,9 @@ MIN_CONTOUR_AREA = 300               # 最小有效轮廓面积 (像素)
 
 
 UI_DEF_HUE_TOL = 12
-UI_DEF_SAT_MIN = 100
-UI_DEF_VAL_MIN = 50
-UI_DEF_TIME_WIN = 3
+UI_DEF_SAT_MIN = 54
+UI_DEF_VAL_MIN = 0
+UI_DEF_TIME_WIN = 6
 UI_DEF_NORM_ANGLE = 30
 UI_DEF_MIN_RAD = 15 
 UI_DEF_MAX_RAD = 60
