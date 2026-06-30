@@ -13,7 +13,7 @@ OPENNI2_REDIST_PATH = os.path.join(
 )
 
 # 内参
-FX, FY = 570.0, 570.0
+FX, FY = 575.0, 575.0
 CX, CY = 320.0, 240.0
 IMG_WIDTH, IMG_HEIGHT = 640, 480
 
@@ -64,4 +64,4 @@ KDTREE_SEARCH_RADIUS = 0.012         # 发现过滤时用的 KDTree 搜索半径
 DBSCAN_EPS = 0.015                   # DBSCAN 聚类距离
 DBSCAN_MIN_POINTS = 15               # DBSCAN 聚类最少点数
 SPHERE_FIT_MIN_PTS = 15              # 触发球面拟合的最少点数
-PASSING_NEIGHBORS = 6                # 8个临近点中，通过法线连续性检查的点数
+PASSING_NEIGHBORS = 7                # 8个临近点中，通过法线连续性检查的点数

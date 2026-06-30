@@ -44,11 +44,14 @@ class AstraCamera:
         d_frame = self.depth_stream.read_frame()
         c_frame = self.color_stream.read_frame()
         
-        d_arr_raw = np.frombuffer(d_frame.get_buffer_as_uint16(), dtype=np.uint16).reshape(IMG_HEIGHT, IMG_WIDTH)
-        c_arr = np.frombuffer(c_frame.get_buffer_as_uint8(), dtype=np.uint8).reshape(IMG_HEIGHT, IMG_WIDTH, 3)
+        d_raw = np.frombuffer(d_frame.get_buffer_as_uint16(), dtype=np.uint16).reshape(self.height, self.width)
+        c_raw = np.frombuffer(c_frame.get_buffer_as_uint8(), dtype=np.uint8).reshape(self.height, self.width, 3)
+    
+        d_arr = d_raw.astype(np.float32).copy()
+        c_arr = c_raw.copy()
         bgr_img = cv2.cvtColor(c_arr, cv2.COLOR_RGB2BGR)
-        
-        return bgr_img, c_arr, d_arr_raw
+    
+        return bgr_img, c_arr, d_arr
 
     def release(self):
         self.depth_stream.stop()

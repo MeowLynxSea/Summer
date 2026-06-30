@@ -12,7 +12,7 @@ from renderer import SceneRenderer
 
 def main():
     cam_hardware = AstraCamera()
-    config.FX, config.FY, config.CX, config.CY = cam_hardware.get_intrinsics() #更新内参
+    # config.FX, config.FY, config.CX, config.CY = cam_hardware.get_intrinsics() #更新内参
     print("相机内参：", config.FX, config.FY, config.CX, config.CY)
 
     fps_camera = FPSCamera()
@@ -41,7 +41,7 @@ def main():
             renderer.update_3d_environment(c_arr, d_arr)
             renderer.update_apples(confirmed_apples)
             renderer.update_camera_view(fps_camera.get_extrinsic())
-            renderer.show_2d_windows(bgr_img, d_arr, acc_mask)
+            renderer.show_2d_windows(bgr_img, d_arr, acc_mask,confirmed_apples)
 
             if cv2.waitKey(1) == 27: 
                 break

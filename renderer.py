@@ -26,6 +26,15 @@ class SceneRenderer:
         self.template_shell_vertices = np.asarray(unit_ls.points).copy()
         self.template_shell_lines = unit_ls.lines
 
+        self.cluster_colors = [
+            (255, 0, 0), 
+            (0, 255, 0),  
+            (0, 255, 255), 
+            (255, 0, 255), 
+            (255, 255, 0), 
+            (0, 165, 255),
+        ]
+
 
         self.apple_centers, self.apple_shells = [], []
         for _ in range(config.MAX_APPLES):
@@ -58,7 +67,7 @@ class SceneRenderer:
             center_geo = self.apple_centers[i]
             
             if i < len(confirmed_apples):
-                center, radius = confirmed_apples[i]
+                center, radius,_ = confirmed_apples[i]
                 center_geo.translate(center, relative=False)
                 
                 new_points = self.template_shell_vertices * radius + center
@@ -77,7 +86,7 @@ class SceneRenderer:
         self.vis.poll_events()
         self.vis.update_renderer()
 
-    def show_2d_windows(self, bgr_img, d_arr, acc_mask):
+    def show_2d_windows(self, bgr_img, d_arr, acc_mask,confirmed_apples):
         red_extracted_img = cv2.bitwise_and(bgr_img, bgr_img, mask=acc_mask)
         
         render_max_mm = config.DEPTH_Z_MAX * 1000.0 
@@ -87,10 +96,34 @@ class SceneRenderer:
             cv2.COLORMAP_JET
         )
         depth_colormap[d_arr == 0] = [0, 0, 0] 
+        
+        seg_debug_img = bgr_img.copy()
 
-        cv2.imshow("Astra RGB", bgr_img)
-        cv2.imshow("Astra Depth", depth_colormap) 
-        cv2.imshow("Red Extraction", red_extracted_img) 
+        for i, (center, radius, cluster_pts) in enumerate(confirmed_apples):
+     
+            color = self.cluster_colors[i % len(self.cluster_colors)]
+            
+            pts_x = cluster_pts[:, 0]
+            pts_y = cluster_pts[:, 1]
+            pts_z = cluster_pts[:, 2]
+            
+            u_pts = (pts_x * config.FX / pts_z + config.CX).astype(np.int32)
+            v_pts = (config.CY - pts_y * config.FY / pts_z).astype(np.int32)
+            
+            for u, v in zip(u_pts, v_pts):
+                if 0 <= u < config.IMG_WIDTH and 0 <= v < config.IMG_HEIGHT:
+                    cv2.circle(seg_debug_img, (u, v), 2, color, -1)
+
+            cz = center[2]
+            cu = int(center[0] * config.FX / cz + config.CX)
+            cv = int(config.CY  - center[1] * config.FY / cz)
+            cv2.putText(seg_debug_img, f"Apple_{i}", (cu, cv), 
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
+            
+        cv2.imshow("Segmentation Result", cv2.flip(seg_debug_img, 1))
+        cv2.imshow("Astra RGB", cv2.flip(bgr_img, 1))
+        cv2.imshow("Astra Depth", cv2.flip(depth_colormap, 1))
+        cv2.imshow("Red Extraction", cv2.flip(red_extracted_img, 1))
     
     def release(self):
         self.vis.destroy_window()
