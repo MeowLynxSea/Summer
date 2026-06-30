@@ -33,7 +33,13 @@ APPLE_SHELL_RESOLUTION = 12          # 球的网格分辨率
 MAX_APPLES = 5                       # 追踪目标数
 TRACKER_DIST_THRESH = 0.08           # 匹配距离阈值
 TRACKER_EMA_ALPHA = 0.6              # 平滑系数 (0~1, 越大越相信新观测值)
-PREDICT_DAMPING = 0.4               # 预测阻尼系数 (0~1, 越大越相信旧预测值)
+PREDICT_DAMPING = 0.8               
+
+
+KF_POS_NOISE = 0.01   # 位置噪声，数值越小越相信相机
+KF_RAD_NOISE = 0.1   # 半径噪声
+KF_PROC_NOISE = 0.01 # 过程噪声，数值越大越允许目标突变转向
+
 
 # ================= 图像处理过滤配置 =================
 DEPTH_Z_MIN = 0.1                    # 有效深度下限
@@ -49,7 +55,7 @@ MIN_CONTOUR_AREA = 300               # 最小有效轮廓面积 (像素)
 UI_DEF_HUE_TOL = 12
 UI_DEF_SAT_MIN = 54
 UI_DEF_VAL_MIN = 0
-UI_DEF_TIME_WIN = 6
+UI_DEF_TIME_WIN = 1
 UI_DEF_NORM_ANGLE = 30
 UI_DEF_MIN_RAD = 15 
 UI_DEF_MAX_RAD = 60

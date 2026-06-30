@@ -9,10 +9,11 @@ from tracker import AppleTracker
 from alg import segment_and_filter_apples
 from vision import VisionProcessor
 from renderer import SceneRenderer
+import time
 
 def main():
     cam_hardware = AstraCamera()
-    # config.FX, config.FY, config.CX, config.CY = cam_hardware.get_intrinsics() #更新内参
+    config.FX, config.FY, config.CX, config.CY = cam_hardware.get_intrinsics() #更新内参
     print("相机内参：", config.FX, config.FY, config.CX, config.CY)
 
     fps_camera = FPSCamera()
@@ -22,15 +23,23 @@ def main():
 
     print("TAB 键解锁/锁定鼠标，ESC 退出。")
 
+    
+    last_time = time.perf_counter()
     try:
         while fps_camera.running:
+
+            current_time = time.perf_counter()
+            dt = current_time - last_time
+            last_time = current_time
+            dt = max(0.001, min(dt, 0.5))
+
             bgr_img, c_arr, d_arr = cam_hardware.get_frames()
 
             acc_mask, target_pts_3d, params = vision.process(bgr_img, d_arr)
 
             raw_apples = segment_and_filter_apples(target_pts_3d, params.norm_angle, params.min_rad, params.max_rad)
 
-            confirmed_apples = tracker.update(raw_apples, params.confirm_f, params.lost_f)
+            confirmed_apples = tracker.update(raw_apples, params.confirm_f, params.lost_f,dt)
             
             if len(confirmed_apples) != fps_camera.last_apple_count:
                 print(f"当前追踪 {len(confirmed_apples)} 个苹果")
