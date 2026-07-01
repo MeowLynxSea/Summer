@@ -24,6 +24,10 @@ class VisionProcessor:
         cv2.createTrackbar("Lost Frm", self.window_name, config.UI_DEF_LOST_FRM, 30, lambda x: None)
 
         cv2.createTrackbar("Blur K", self.window_name, config.UI_DEF_BLUR_R, 20, lambda x: None)
+        cv2.createTrackbar("Morph Open", self.window_name, config.MORPH_OPEN_KERNEL_R, 20, lambda x: None)
+        cv2.createTrackbar("Morph Close", self.window_name, config.MORPH_CLOSE_KERNEL_R, 20, lambda x: None)
+        cv2.createTrackbar("Iter Morph Open", self.window_name, config.ITER_MORPH_OPEN, 10, lambda x: None)
+        cv2.createTrackbar("Iter Morph Close", self.window_name, config.ITER_MORPH_CLOSE, 10, lambda x: None)
 
     def process(self, bgr_img, d_arr):
         hue_tol = cv2.getTrackbarPos("Hue Tol", self.window_name)
@@ -40,6 +44,10 @@ class VisionProcessor:
 
         
         blur_k_val = cv2.getTrackbarPos("Blur K", self.window_name)
+        morph_open_val = cv2.getTrackbarPos("Morph Open", self.window_name)
+        morph_close_val = cv2.getTrackbarPos("Morph Close", self.window_name)
+        iter_morph_open = cv2.getTrackbarPos("Iter Morph Open", self.window_name)
+        iter_morph_close = cv2.getTrackbarPos("Iter Morph Close", self.window_name)
 
         if blur_k_val == 0:
             blur_k = 1
@@ -54,9 +62,8 @@ class VisionProcessor:
         mask2 = cv2.inRange(hsv_img, np.array([180 - hue_tol, sat_min, val_min]), np.array([180, 255, 255]))
         red_mask = cv2.bitwise_or(mask1, mask2)
         
-        red_mask = cv2.morphologyEx(red_mask, cv2.MORPH_OPEN, config.MORPH_OPEN_KERNEL, iterations=1)
-        red_mask = cv2.morphologyEx(red_mask, cv2.MORPH_CLOSE, config.MORPH_CLOSE_KERNEL, iterations=2)
-
+        red_mask = cv2.morphologyEx(red_mask, cv2.MORPH_OPEN, (morph_open_val,morph_open_val), iterations=iter_morph_open)
+        red_mask = cv2.morphologyEx(red_mask, cv2.MORPH_CLOSE, (morph_close_val,morph_close_val), iterations=iter_morph_close)
 
         # for优化
         # contours, _ = cv2.findContours(red_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)

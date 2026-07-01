@@ -34,7 +34,7 @@ MAX_APPLES = 5                       # 追踪目标数
 TRACKER_DIST_THRESH = 0.08           # 匹配距离阈值
 TRACKER_EMA_ALPHA = 0.6              # 平滑系数 (0~1, 越大越相信新观测值)
 PREDICT_DAMPING = 0.8               
-
+TOLERANCE_DIS = 0.05                  # 位置容忍距离
 
 KF_POS_NOISE = 0.01   # 位置噪声，数值越小越相信相机
 KF_RAD_NOISE = 0.1   # 半径噪声
@@ -45,11 +45,12 @@ KF_PROC_NOISE = 0.01 # 过程噪声，数值越大越允许目标突变转向
 DEPTH_Z_MIN = 0.1                    # 有效深度下限
 DEPTH_Z_MAX = 2.5                    # 有效深度上限
 
-UI_DEF_BLUR_R = 10
-GAUSSIAN_KERNEL = (UI_DEF_BLUR_R, UI_DEF_BLUR_R)             # 高斯滤波核大小
-MORPH_OPEN_KERNEL = (3, 3)           # 开运算核大小 (去噪点)
-MORPH_CLOSE_KERNEL = (5, 5)          # 闭运算核大小 (填补空洞)
-MIN_CONTOUR_AREA = 300               # 最小有效轮廓面积 (像素)
+UI_DEF_BLUR_R = 10                   # 高斯滤波核大小
+MORPH_OPEN_KERNEL_R = 3                  # 开运算核大小 (去噪点)
+ITER_MORPH_OPEN = 1                     # 开运算迭代次数
+MORPH_CLOSE_KERNEL_R = 5                 # 闭运算核大小 (填补空洞)
+ITER_MORPH_CLOSE = 1                   # 闭运算迭代次数
+MIN_CONTOUR_AREA = 300                 # 最小有效轮廓面积 (像素)
 
 
 UI_DEF_HUE_TOL = 12

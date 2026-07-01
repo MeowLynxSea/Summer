@@ -80,5 +80,36 @@ def segment_and_filter_apples(pts_3d, norm_angle_thresh, min_radius, max_radius)
         
         if center is not None and min_radius < radius < max_radius:
             results.append((center, radius, cluster_pts))
+    
+    
+    # 合并相近的球体
+    merged_results = []
+    
+    for curr_center, curr_radius, curr_pts in results:
+        found_match = False
+        
+        for i, (merged_center, merged_radius, merged_pts) in enumerate(merged_results):
+
+            center_dist = np.linalg.norm(curr_center - merged_center)
             
-    return results
+            if center_dist < max(curr_radius, merged_radius) * 0.8:
+                
+                combined_pts = np.vstack((merged_pts, curr_pts))
+                
+                new_center, new_radius = fit_sphere_least_squares(combined_pts)
+                
+                if new_center is not None:
+                    if new_radius < max_radius:
+                        merged_results[i] = (new_center, new_radius, combined_pts)
+                    else:
+                        # 如果合并后算出超大半径，则只保留点云数量多的那一块碎片
+                        if len(curr_pts) > len(merged_pts):
+                            merged_results[i] = (curr_center, curr_radius, curr_pts)
+                
+                found_match = True
+                break 
+                
+        if not found_match:
+            merged_results.append((curr_center, curr_radius, curr_pts))
+            
+    return merged_results

@@ -9,6 +9,8 @@ class TrackedApple:
         self.misses = 0
         self.is_confirmed = False
 
+        self.last_innovation = 0
+
         # 卡尔曼滤波初始化
         # X: [x, y, z, vx, vy, vz, r]
         self.X = np.array([center[0], center[1], center[2],
@@ -36,27 +38,38 @@ class TrackedApple:
     @property
     def radius(self):
         return self.X[6]
+
     @property
     def speed(self):
         return np.linalg.norm(self.X[3:6])
-    
+
     def predict(self, dt):
 
         self.F[0, 3] = self.F[1, 4] = self.F[2, 5] = dt
+        self.X[3:6] *= PREDICT_DAMPING
         self.X = np.dot(self.F, self.X)
         self.P = np.dot(np.dot(self.F, self.P), self.F.T) + self.Q
         return self.X[:3]
 
     def update(self, center, radius, cluster_pts):
-        S = np.dot(np.dot(self.H, self.P), self.H.T) + self.R
-        K = np.dot(np.dot(self.P, self.H.T), np.linalg.inv(S))
 
-        Z = np.array([center[0], center[1], center[2], radius],
-                     dtype=np.float32)
-        y = Z - np.dot(self.H, self.X)
+        measurement = np.array(
+            [center[0], center[1], center[2], radius], dtype=np.float32)
+        innovation = np.linalg.norm(
+            measurement[:3] - np.dot(self.H, self.X)[:3])
+        if innovation > TOLERANCE_DIS:
+            adaptive_Q = self.Q * (1 + innovation * 10)
+            P_temp = np.dot(np.dot(self.F, self.P), self.F.T) + adaptive_Q
+        else:
+            P_temp = self.P
+
+        S = np.dot(np.dot(self.H, P_temp), self.H.T) + self.R
+        K = np.dot(np.dot(P_temp, self.H.T), np.linalg.inv(S))
+
+        y = measurement - np.dot(self.H, self.X)
         self.X = self.X + np.dot(K, y)
 
-        self.P = self.P - np.dot(np.dot(K, self.H), self.P)
+        self.P = P_temp - np.dot(np.dot(K, self.H), P_temp)
 
         self.cluster_pts = cluster_pts
         self.hits += 1
@@ -92,8 +105,9 @@ class AppleTracker:
                 spatial_overlap_limit = (track.radius + det_radius) * 0.9
                 speed_allowance = current_speed * dt * 2.0
 
-                gating_radius = max(self.dist_thresh, spatial_overlap_limit + speed_allowance)
-                
+                gating_radius = max(
+                    self.dist_thresh, spatial_overlap_limit + speed_allowance)
+
                 if track.is_confirmed:
                     gating_radius *= 1.2
 
