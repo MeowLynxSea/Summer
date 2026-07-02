@@ -17,6 +17,7 @@ class ArmVisualizer:
         self.trajectory = []
         self.surfaces = []
         self.axis_lines = []
+        self.torque_texts = []
         self.traj_line = None 
 
         self.ax.set_xlim([-2, 10]); self.ax.set_ylim([-2, 10]); self.ax.set_zlim([0, 12])
@@ -98,22 +99,24 @@ class ArmVisualizer:
             self.render()
 
     def render(self):
-        for obj in self.surfaces + self.axis_lines:
+        for obj in self.surfaces + self.axis_lines + self.torque_texts:
             try: obj.remove()
             except: pass
-        self.surfaces, self.axis_lines = [], []
+        self.surfaces, self.axis_lines, self.torque_texts = [], [], []
         
-        segs, joints, servo_frames = self.arm.forward_kinematics(self.last_valid_states)
+        segs, joints, servo_frames, joint_torques = self.arm.forward_kinematics(self.last_valid_states)
         
         axis_len = 1.2
         for frame in servo_frames:
             p0 = frame['pos']
             p_axis = p0 + frame['axis'] * axis_len
             l1, = self.ax.plot([p0[0], p_axis[0]], [p0[1], p_axis[1]], [p0[2], p_axis[2]], color='red', linewidth=3, zorder=10)
+            self.axis_lines.append(l1)
 
-            p_zero = p0 + frame['zero'] * axis_len
-            l2, = self.ax.plot([p0[0], p_zero[0]], [p0[1], p_zero[1]], [p0[2], p_zero[2]], color='green', linewidth=3, zorder=10)
-            self.axis_lines.extend([l1, l2])
+            if frame.get('zero') is not None:
+                p_zero = p0 + frame['zero'] * axis_len
+                l2, = self.ax.plot([p0[0], p_zero[0]], [p0[1], p_zero[1]], [p0[2], p_zero[2]], color='green', linewidth=3, zorder=10)
+                self.axis_lines.append(l2)
 
         # 机械臂
         for s in segs:
@@ -122,9 +125,12 @@ class ArmVisualizer:
                 c = 'red' if s['type'] == 'A' else '#1f77b4'
                 self.surfaces.append(self.ax.plot_surface(*mesh, color=c, shade=True, antialiased=False, alpha=0.9))
         
-        for j in joints[:-1]:
+        overload_indices = {load['module_index'] for load in joint_torques if load['overloaded']}
+
+        for idx, j in enumerate(joints[:-1]):
             mesh = GeometryEngine.get_sphere_mesh(j, 0.2)
-            self.surfaces.append(self.ax.plot_surface(*mesh, color='gold', shade=True, antialiased=False))
+            joint_color = 'red' if idx in overload_indices else 'gold'
+            self.surfaces.append(self.ax.plot_surface(*mesh, color=joint_color, shade=True, antialiased=False))
 
         # 轨迹线
         end_pt = joints[-1]
@@ -139,6 +145,27 @@ class ArmVisualizer:
         mesh_end = GeometryEngine.get_sphere_mesh(joints[-1], 0.25)
         surf_end = self.ax.plot_surface(*mesh_end, color='lime', shade=True, antialiased=False)
         self.surfaces.append(surf_end)
+
+        for load in joint_torques:
+            text = f"{load['type']}{load['module_index'] + 1} |M|={load['torque_magnitude']:.1f}Nm"
+            if load['type'] == 'B':
+                text += f"\n|Taxis|={load['axis_torque']:.1f}Nm"
+            text += f"\nlimit={load['max_torque']:.1f}Nm"
+            box_face = '#ffdddd' if load['overloaded'] else 'white'
+            box_edge = '#cc0000' if load['overloaded'] else '#666666'
+            text_color = '#aa0000' if load['overloaded'] else 'black'
+            label = self.ax.text(
+                load['label_pos'][0],
+                load['label_pos'][1],
+                load['label_pos'][2],
+                text,
+                fontsize=8,
+                color=text_color,
+                ha='left',
+                va='bottom',
+                bbox={'boxstyle': 'round,pad=0.25', 'facecolor': box_face, 'alpha': 0.85, 'edgecolor': box_edge},
+            )
+            self.torque_texts.append(label)
 
         self.fig.canvas.draw_idle()
 
