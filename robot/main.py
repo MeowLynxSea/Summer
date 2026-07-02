@@ -24,8 +24,13 @@ if __name__ == "__main__":
     plt.ion() 
     
     t = 0.0
-    dt = 0.05
+    last_wall_time = time.perf_counter()
     while plt.fignum_exists(viz.fig.number):
+        now_wall_time = time.perf_counter()
+        dt = min(max(now_wall_time - last_wall_time, 1e-4), 0.2)
+        last_wall_time = now_wall_time
+        t += dt
+
         # None以供手动调整滑条
         s1 = None
         s2 = None
@@ -38,5 +43,4 @@ if __name__ == "__main__":
         
         viz.set_joint_states([s1, s2, s3, None, None, theta3], dt, current_time=t)
         
-        plt.pause(dt)
-        t += dt
+        plt.pause(0.001)
