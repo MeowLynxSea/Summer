@@ -15,7 +15,7 @@ class RobotArm:
                 continue
             m_type = p[0].upper()
             if m_type == 'A':
-                # A n_dir L rod_mass module_mass max_torque
+                # A n_dir L rod_mass module_mass max_torque speed
                 self.modules.append({
                     'type': 'A', 
                     'n1': np.array([float(p[1]), float(p[2]), float(p[3])]), 
@@ -23,15 +23,17 @@ class RobotArm:
                     'rod_mass': float(p[5]),
                     'module_mass': float(p[6]),
                     'max_torque': float(p[7]),
+                    'speed': float(p[8]),
                 })
             elif m_type == 'B':
-                # B n_axis n_zero_dir L rod_mass module_mass max_torque
+                # B n_axis n_zero_dir L rod_mass module_mass max_torque speed
                 n1 = np.array([float(p[1]), float(p[2]), float(p[3])])  # 旋转轴
                 n2 = np.array([float(p[4]), float(p[5]), float(p[6])])  # 零位杆件朝向
                 L = float(p[7])
                 rod_mass = float(p[8])
                 module_mass = float(p[9])
                 max_torque = float(p[10])
+                speed = float(p[11])
                 # 确保 n2 垂直于 n1
                 n1 /= np.linalg.norm(n1)
                 n2 -= np.dot(n2, n1) * n1
@@ -44,6 +46,7 @@ class RobotArm:
                     'rod_mass': rod_mass,
                     'module_mass': module_mass,
                     'max_torque': max_torque,
+                    'speed': speed,
                 })
 
     @staticmethod
