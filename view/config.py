@@ -71,6 +71,11 @@ UI_DEF_LOST_FRM = 10
 UI_DEF_LAB_A_MIN = 145           
 UI_DEF_LAB_L_MIN = 20            
 
+# 几何
+UI_DEF_GEO_ENABLE = 0           # 0关
+UI_DEF_SPHERICITY_MIN = 4      
+UI_DEF_PLANARITY_MAX = 60      
+UI_DEF_SADDLE_RATIO= 15
 
 # =================  点云与几何算法 =================
 MIN_APPLE_RADIUS_M = 0.015           # 限制目标的最小半径 1.5cm

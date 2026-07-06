@@ -2,6 +2,7 @@ import cv2
 import numpy as np
 from collections import namedtuple
 import config
+from scipy.spatial import cKDTree
 
 VisionParams = namedtuple("VisionParams", ["norm_angle","min_rad", "max_rad", "confirm_f", "lost_f"])
 
@@ -14,9 +15,13 @@ class VisionProcessor:
 
     def _create_trackbars(self):
         
-        cv2.createTrackbar("Mode 0:HSV 1:LAB", self.window_name, config.UI_DEF_COLOR_MODE, 1, lambda x: None)
-
+        cv2.createTrackbar("Mode 0:HSV 1:LAB", self.window_name, config.UI_DEF_COLOR_MODE, 1, lambda x: None)   
+        cv2.createTrackbar("Geo Mask Enable", self.window_name, config.UI_DEF_GEO_ENABLE, 1, lambda x: None)
         
+        cv2.createTrackbar("Geo Sphere Min", self.window_name, config.UI_DEF_SPHERICITY_MIN, 15, lambda x: None)
+        cv2.createTrackbar("Geo Planar Max", self.window_name, config.UI_DEF_PLANARITY_MAX, 100, lambda x: None)
+        cv2.createTrackbar("Geo Saddle Ratio", self.window_name, config.UI_DEF_SADDLE_RATIO, 50, lambda x: None)
+
         cv2.createTrackbar("LAB A Min", self.window_name, config.UI_DEF_LAB_A_MIN, 255, lambda x: None)
         cv2.createTrackbar("LAB L Min", self.window_name, config.UI_DEF_LAB_L_MIN, 255, lambda x: None)
 
@@ -39,94 +44,168 @@ class VisionProcessor:
         cv2.createTrackbar("Iter Morph Open", self.window_name, config.ITER_MORPH_OPEN, 10, lambda x: None)
         cv2.createTrackbar("Iter Morph Close", self.window_name, config.ITER_MORPH_CLOSE, 10, lambda x: None)
 
-    def process(self, bgr_img, d_arr):
+    
+    def _get_ui_params(self):
+        p = {}
+        p['color_mode'] = cv2.getTrackbarPos("Mode 0:HSV 1:LAB", self.window_name)
+        p['geo_enable'] = cv2.getTrackbarPos("Geo Mask Enable", self.window_name)
+        p['geo_sphere_min'] = cv2.getTrackbarPos("Geo Sphere Min", self.window_name) / 100.0
+        p['geo_planar_max'] = cv2.getTrackbarPos("Geo Planar Max", self.window_name) / 100.0
+        p['geo_saddle_ratio'] = cv2.getTrackbarPos("Geo Saddle Ratio", self.window_name) / 100.0
+        p['lab_a_min'] = cv2.getTrackbarPos("LAB A Min", self.window_name)
+        p['lab_l_min'] = cv2.getTrackbarPos("LAB L Min", self.window_name)
+        p['hue_tol'] = cv2.getTrackbarPos("Hue Tol", self.window_name)
+        p['sat_min'] = cv2.getTrackbarPos("Sat Min", self.window_name)
+        p['val_min'] = cv2.getTrackbarPos("Val Min", self.window_name)
+        p['time_win'] = max(1, cv2.getTrackbarPos("Time Win", self.window_name))
+        p['norm_angle'] = cv2.getTrackbarPos("Norm Angle", self.window_name)
+        p['min_rad'] = cv2.getTrackbarPos("Min Rad", self.window_name) / 1000.0
+        p['max_rad'] = cv2.getTrackbarPos("Max Rad", self.window_name) / 1000.0
+        p['confirm_f'] = max(1, cv2.getTrackbarPos("Confirm Frm", self.window_name))
+        p['lost_f'] = cv2.getTrackbarPos("Lost Frm", self.window_name)
         
-        color_mode = cv2.getTrackbarPos("Mode 0:HSV 1:LAB", self.window_name)
-
-        lab_a_min = cv2.getTrackbarPos("LAB A Min", self.window_name)
-        lab_l_min = cv2.getTrackbarPos("LAB L Min", self.window_name)
-
-        hue_tol = cv2.getTrackbarPos("Hue Tol", self.window_name)
-        sat_min = cv2.getTrackbarPos("Sat Min", self.window_name)
-        val_min = cv2.getTrackbarPos("Val Min", self.window_name)
-
-        time_win = max(1, cv2.getTrackbarPos("Time Win", self.window_name))
+        # 卷积核为奇数
+        bk = cv2.getTrackbarPos("Blur K", self.window_name)
+        p['blur_k'] = bk + 1 if bk % 2 == 0 else bk
+        p['blur_k'] = max(1, p['blur_k'])
         
-        norm_angle = cv2.getTrackbarPos("Norm Angle", self.window_name)
+        p['m_open'] = cv2.getTrackbarPos("Morph Open", self.window_name)
+        p['m_close'] = cv2.getTrackbarPos("Morph Close", self.window_name)
+        p['iter_open'] = cv2.getTrackbarPos("Iter Morph Open", self.window_name)
+        p['iter_close'] = cv2.getTrackbarPos("Iter Morph Close", self.window_name)
+        return p
+    
+    
+    def _color_segmentation(self, bgr_img, p):
+        blurred = cv2.GaussianBlur(bgr_img, (p['blur_k'], p['blur_k']), 0)
         
-        min_rad = cv2.getTrackbarPos("Min Rad", self.window_name) / 1000.0
-        max_rad = cv2.getTrackbarPos("Max Rad", self.window_name) / 1000.0
-        confirm_f = max(1, cv2.getTrackbarPos("Confirm Frm", self.window_name))
-        lost_f = cv2.getTrackbarPos("Lost Frm", self.window_name)
-
-        
-        blur_k_val = cv2.getTrackbarPos("Blur K", self.window_name)
-        morph_open_val = cv2.getTrackbarPos("Morph Open", self.window_name)
-        morph_close_val = cv2.getTrackbarPos("Morph Close", self.window_name)
-        iter_morph_open = cv2.getTrackbarPos("Iter Morph Open", self.window_name)
-        iter_morph_close = cv2.getTrackbarPos("Iter Morph Close", self.window_name)
-
-        if blur_k_val == 0:
-            blur_k = 1
-        elif blur_k_val % 2 == 0:
-            blur_k = blur_k_val + 1
-        else:
-            blur_k = blur_k_val
-
-        # 颜色提取
-        blurred_img = cv2.GaussianBlur(bgr_img, (blur_k, blur_k), 0)
-
-        if color_mode == 0:
+        if p['color_mode'] == 0:
             # HSV
-            hsv_img = cv2.cvtColor(blurred_img, cv2.COLOR_BGR2HSV)
-            mask1 = cv2.inRange(hsv_img, np.array([0, sat_min, val_min]), np.array([hue_tol, 255, 255]))
-            mask2 = cv2.inRange(hsv_img, np.array([180 - hue_tol, sat_min, val_min]), np.array([180, 255, 255]))
-            red_mask = cv2.bitwise_or(mask1, mask2)
+            hsv = cv2.cvtColor(blurred, cv2.COLOR_BGR2HSV)
+            m1 = cv2.inRange(hsv, np.array([0, p['sat_min'], p['val_min']]), np.array([p['hue_tol'], 255, 255]))
+            m2 = cv2.inRange(hsv, np.array([180 - p['hue_tol'], p['sat_min'], p['val_min']]), np.array([180, 255, 255]))
+            return cv2.bitwise_or(m1, m2)
         else:
             # LAB
-            lab_img = cv2.cvtColor(blurred_img, cv2.COLOR_BGR2Lab)
-            L, a, b = cv2.split(lab_img)
-            
-            _, a_mask = cv2.threshold(a, lab_a_min, 255, cv2.THRESH_BINARY)
+            lab = cv2.cvtColor(blurred, cv2.COLOR_BGR2Lab)
+            L, a, b = cv2.split(lab)
+            _, a_m = cv2.threshold(a, p['lab_a_min'], 255, cv2.THRESH_BINARY)
+            _, l_m = cv2.threshold(L, p['lab_l_min'], 255, cv2.THRESH_BINARY)
+            return cv2.bitwise_and(a_m, l_m)
         
-            _, l_mask = cv2.threshold(L, lab_l_min, 255, cv2.THRESH_BINARY)
+    def _geometric_segmentation(self, d_arr, p):
+        if not p['geo_enable']:
+            return np.zeros_like(d_arr, dtype=np.uint8)
+
+        skip = 3 # 跳采样，加速
+        h, w = d_arr.shape
+        y, x = np.mgrid[0:h:skip, 0:w:skip]
+        z = d_arr[0:h:skip, 0:w:skip] / 1000.0
+        
+        mask_z = (z > config.DEPTH_Z_MIN) & (z < config.DEPTH_Z_MAX)
+        if not np.any(mask_z): return np.zeros_like(d_arr, dtype=np.uint8)
+        
+        z_v = z[mask_z]
+        x_v = (x[mask_z] - config.CX) * z_v / config.FX
+        y_v = -(y[mask_z] - config.CY) * z_v / config.FY
+        pts = np.stack((x_v, y_v, z_v), axis=-1)
+        
+        tree = cKDTree(pts)
+        neighbors_list = tree.query_ball_point(pts, r=config.NORMAL_SEARCH_RADIUS , workers=-1)
+        
+        candidate_coords = []
+        
+        for i, neighbors in enumerate(neighbors_list):
+            if len(neighbors) < 10: continue
+
+            local_pts = pts[neighbors]
+            diff = local_pts - np.mean(local_pts, axis=0)
+            cov = np.dot(diff.T, diff) / len(neighbors)
             
-            red_mask = cv2.bitwise_and(a_mask, l_mask)
+            # 特征值分解
+            evals, evecs = np.linalg.eigh(cov) # L3 <= L2 <= L1
+            L3, L2, L1 = evals
+            normal = evecs[:, 0] 
 
-        red_mask = cv2.morphologyEx(red_mask, cv2.MORPH_OPEN, (morph_open_val,morph_open_val), iterations=iter_morph_open)
-        red_mask = cv2.morphologyEx(red_mask, cv2.MORPH_CLOSE, (morph_close_val,morph_close_val), iterations=iter_morph_close)
+            # pca曲率 
+            curvature = L3 / (L1 + L2 + L3)
+            # 线度 
+            linearity = L2 / L1
 
-        # for优化
-        # contours, _ = cv2.findContours(red_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        # final_mask = np.zeros_like(red_mask)
-        # for cnt in contours:
-        #     if cv2.contourArea(cnt) > config.MIN_CONTOUR_AREA: 
-        #         cv2.drawContours(final_mask, [cnt], -1, 255, -1)
+            # 凸性
+            center_pt = pts[i]
+            vecs = local_pts - center_pt
+            dists = np.dot(vecs, normal)
+            pos_count = np.sum(dists > 0.001)
+            neg_count = np.sum(dists < -0.001)
+            side_ratio = min(pos_count, neg_count) / len(neighbors)
 
-        _, labels, stats, _ = cv2.connectedComponentsWithStats(red_mask, connectivity=8)
+            if side_ratio > p['geo_saddle_ratio']: # 如果超过ratio的点在另一侧，为非纯凸面
+                continue
+
+            if p['geo_sphere_min'] < curvature < 0.15 and linearity < p['geo_planar_max']:
+                candidate_coords.append((y[mask_z][i], x[mask_z][i]))
+
+        geo_mask_2d = np.zeros_like(d_arr, dtype=np.uint8)
+        if len(candidate_coords) > 0:
+            coords = np.array(candidate_coords)
+            geo_mask_2d[coords[:, 0], coords[:, 1]] = 255
+            
+            kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (skip*2+1, skip*2+1))
+            geo_mask_2d = cv2.dilate(geo_mask_2d, kernel)
+                
+        return geo_mask_2d
+    
+    
+    def _refine_mask(self, mask, p):
+        if p['m_open'] > 0:
+            mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, (p['m_open'], p['m_open']), iterations=p['iter_open'])
+        if p['m_close'] > 0:
+            mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, (p['m_close'], p['m_close']), iterations=p['iter_close'])
+        
+        num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(mask, connectivity=8)
+        if num_labels <= 1:
+            return np.zeros_like(mask)
+            
         areas = stats[:, cv2.CC_STAT_AREA]
         keep_labels = np.where(areas > config.MIN_CONTOUR_AREA)[0]
         keep_labels = keep_labels[keep_labels != 0]
-        final_mask = np.isin(labels, keep_labels).astype(np.uint8) * 255
+        
+        return np.isin(labels, keep_labels).astype(np.uint8) * 255
+    
+    def _project_to_3d(self, mask, d_arr):
+        y_idx, x_idx = np.where(mask > 0)
+        if len(y_idx) == 0:
+            return []
+            
+        z_v = d_arr[y_idx, x_idx] / 1000.0 
+        valid_z = (z_v > config.DEPTH_Z_MIN) & (z_v < config.DEPTH_Z_MAX)
+        
+        if not np.any(valid_z):
+            return []
+            
+        z_v = z_v[valid_z]
+        x_v = (x_idx[valid_z] - config.CX) * z_v / config.FX
+        y_v = -(y_idx[valid_z] - config.CY) * z_v / config.FY
+        
+        return np.stack((x_v, y_v, z_v), axis=-1)
+    
+    def process(self, bgr_img, d_arr):
+        p = self._get_ui_params()
 
+        red_mask = self._color_segmentation(bgr_img, p)
+        geo_mask = self._geometric_segmentation(d_arr, p)
+        combined_mask = cv2.bitwise_or(red_mask, geo_mask)
 
-        # 时累积
-        self.mask_history.append(final_mask)
-        if len(self.mask_history) > time_win: 
+        refined_mask = self._refine_mask(combined_mask, p)
+
+        self.mask_history.append(refined_mask)
+        if len(self.mask_history) > p['time_win']:
             self.mask_history.pop(0)
-        acc_mask = np.bitwise_or.reduce(self.mask_history) if len(self.mask_history) > 1 else self.mask_history[0]
+        acc_mask = np.bitwise_or.reduce(self.mask_history)
 
-        # 提取有效点云
-        y_idx, x_idx = np.where(acc_mask > 0)
-        target_pts_3d = []
-        if len(y_idx) > 0:
-            z_v = d_arr[y_idx, x_idx] / 1000.0
-            valid_obj = (z_v > config.DEPTH_Z_MIN) & (z_v < config.DEPTH_Z_MAX) 
-            if np.any(valid_obj):
-                z_v = z_v[valid_obj]
-                x_v = (x_idx[valid_obj] -config.CX) * z_v / config.FX
-                y_v = -(y_idx[valid_obj] - config.CY) * z_v / config.FY
-                target_pts_3d = np.stack((x_v, y_v, z_v), axis=-1)
+        target_pts_3d = self._project_to_3d(acc_mask, d_arr)
 
-        params = VisionParams(norm_angle,min_rad, max_rad, confirm_f, lost_f)
+        params = VisionParams(p['norm_angle'], p['min_rad'], p['max_rad'], p['confirm_f'], p['lost_f'])
+        
         return acc_mask, target_pts_3d, params

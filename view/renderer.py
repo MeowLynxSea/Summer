@@ -86,6 +86,34 @@ class SceneRenderer:
         self.vis.poll_events()
         self.vis.update_renderer()
 
+    def generate_normal_map(self, d_arr):
+        h, w = d_arr.shape
+        z = d_arr.astype(np.float32) / 1000.0
+        u = np.arange(w)
+        v = np.arange(h)
+        uu, vv = np.meshgrid(u, v)
+        
+        x = (uu - config.CX) * z / config.FX
+        y = -(vv - config.CY) * z / config.FY
+        pts = np.stack((x, y, z), axis=-1)
+
+        dx = np.zeros_like(pts)
+        dy = np.zeros_like(pts)
+        dx[:, 1:-1, :] = pts[:, 2:, :] - pts[:, :-2, :]
+        dy[1:-1, :, :] = pts[2:, :, :] - pts[:-2, :, :]
+
+        normal = np.cross(dx, dy)
+        
+        norm = np.linalg.norm(normal, axis=-1, keepdims=True)
+
+        normal = np.divide(normal, norm, out=np.zeros_like(normal), where=norm != 0)
+
+        normal_vis = ((normal + 1.0) / 2.0 * 255.0).astype(np.uint8)
+        
+        normal_vis[d_arr == 0] = 0
+        
+        return cv2.cvtColor(normal_vis, cv2.COLOR_RGB2BGR)
+
     def show_2d_windows(self, bgr_img, d_arr, acc_mask,confirmed_apples):
         red_extracted_img = cv2.bitwise_and(bgr_img, bgr_img, mask=acc_mask)
         
@@ -97,6 +125,7 @@ class SceneRenderer:
         )
         depth_colormap[d_arr == 0] = [0, 0, 0] 
         
+        normal_map = self.generate_normal_map(d_arr)
         seg_debug_img = bgr_img.copy()
 
         for i, (center, radius, cluster_pts) in enumerate(confirmed_apples):
@@ -123,6 +152,7 @@ class SceneRenderer:
         cv2.imshow("Segmentation Result", cv2.flip(seg_debug_img, 1))
         cv2.imshow("Astra RGB", cv2.flip(bgr_img, 1))
         cv2.imshow("Astra Depth", cv2.flip(depth_colormap, 1))
+        cv2.imshow("Normal Map", cv2.flip(normal_map, 1))
         cv2.imshow("Red Extraction", cv2.flip(red_extracted_img, 1))
     
     def release(self):
