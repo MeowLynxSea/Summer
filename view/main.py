@@ -38,7 +38,7 @@ def main():
 
             bgr_img, c_arr, d_arr = cam_hardware.get_frames()
 
-            acc_mask, target_pts_3d, params = vision.process(bgr_img, d_arr)
+            acc_mask, target_pts_3d, params,d_arr_filtered = vision.process(bgr_img, d_arr)
 
             raw_apples = segment_and_filter_apples(target_pts_3d, params.norm_angle, params.min_rad, params.max_rad)
 
@@ -50,10 +50,10 @@ def main():
 
             fps_camera.update()
 
-            renderer.update_3d_environment(c_arr, d_arr)
+            renderer.update_3d_environment(c_arr, d_arr_filtered)
             renderer.update_apples(confirmed_apples)
             renderer.update_camera_view(fps_camera.get_extrinsic())
-            renderer.show_2d_windows(bgr_img, d_arr, acc_mask,confirmed_apples)
+            renderer.show_2d_windows(bgr_img, d_arr_filtered, acc_mask,confirmed_apples)
 
             if cv2.waitKey(1) == 27: 
                 break

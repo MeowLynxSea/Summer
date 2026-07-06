@@ -54,6 +54,12 @@ ITER_MORPH_CLOSE = 1                   # 闭运算迭代次数
 MIN_CONTOUR_AREA = 300                 # 最小有效轮廓面积 (像素)
 
 
+# 深度图双边滤波预处理
+UI_DEF_BILATERAL_D = 5          # 过滤核
+UI_DEF_BILATERAL_SIGMA_C = 30   # 深度空间标准差 (越小越保留边缘)
+UI_DEF_BILATERAL_SIGMA_S = 30   # 坐标空间标准差
+
+
 UI_DEF_COLOR_MODE = 1                # 0: HSV，1: LAB
 
 # HSV

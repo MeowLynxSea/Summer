@@ -44,6 +44,9 @@ class VisionProcessor:
         cv2.createTrackbar("Iter Morph Open", self.window_name, config.ITER_MORPH_OPEN, 10, lambda x: None)
         cv2.createTrackbar("Iter Morph Close", self.window_name, config.ITER_MORPH_CLOSE, 10, lambda x: None)
 
+        cv2.createTrackbar("Bilateral D", self.window_name, config.UI_DEF_BILATERAL_D, 30, lambda x: None)
+        cv2.createTrackbar("Bilateral Sigma C", self.window_name, config.UI_DEF_BILATERAL_SIGMA_C, 100, lambda x: None)
+        cv2.createTrackbar("Bilateral Sigma S", self.window_name, config.UI_DEF_BILATERAL_SIGMA_S, 100, lambda x: None)
     
     def _get_ui_params(self):
         p = {}
@@ -69,6 +72,10 @@ class VisionProcessor:
         p['blur_k'] = bk + 1 if bk % 2 == 0 else bk
         p['blur_k'] = max(1, p['blur_k'])
         
+        p['bilateral_d'] = cv2.getTrackbarPos("Bilateral D", self.window_name)
+        p['bilateral_sigma_c'] = cv2.getTrackbarPos("Bilateral Sigma C", self.window_name)
+        p['bilateral_sigma_s'] = cv2.getTrackbarPos("Bilateral Sigma S", self.window_name)
+
         p['m_open'] = cv2.getTrackbarPos("Morph Open", self.window_name)
         p['m_close'] = cv2.getTrackbarPos("Morph Close", self.window_name)
         p['iter_open'] = cv2.getTrackbarPos("Iter Morph Open", self.window_name)
@@ -190,11 +197,31 @@ class VisionProcessor:
         
         return np.stack((x_v, y_v, z_v), axis=-1)
     
+    def _preprocess_depth(self, d_arr, p):
+        if p['bilateral_d'] <= 1:
+            return d_arr
+        
+        d_float = d_arr.astype(np.float32)
+        
+        # 双边滤波
+        # d: 过滤核
+        # sigmaColor: 深度差阈值，大于此值的边缘会被保留
+        # sigmaSpace: 坐标空间sigma
+        d_filtered = cv2.bilateralFilter(
+            d_float, 
+            p['bilateral_d'], 
+            p['bilateral_sigma_c'], 
+            p['bilateral_sigma_s']
+        )
+        
+        return d_filtered
+    
     def process(self, bgr_img, d_arr):
         p = self._get_ui_params()
+        d_arr_filtered = self._preprocess_depth(d_arr, p)
 
         red_mask = self._color_segmentation(bgr_img, p)
-        geo_mask = self._geometric_segmentation(d_arr, p)
+        geo_mask = self._geometric_segmentation(d_arr_filtered, p)
         combined_mask = cv2.bitwise_or(red_mask, geo_mask)
 
         refined_mask = self._refine_mask(combined_mask, p)
@@ -204,8 +231,8 @@ class VisionProcessor:
             self.mask_history.pop(0)
         acc_mask = np.bitwise_or.reduce(self.mask_history)
 
-        target_pts_3d = self._project_to_3d(acc_mask, d_arr)
+        target_pts_3d = self._project_to_3d(acc_mask, d_arr_filtered)
 
         params = VisionParams(p['norm_angle'], p['min_rad'], p['max_rad'], p['confirm_f'], p['lost_f'])
         
-        return acc_mask, target_pts_3d, params
+        return acc_mask, target_pts_3d, params,d_arr_filtered
