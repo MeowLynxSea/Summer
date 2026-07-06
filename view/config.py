@@ -54,6 +54,9 @@ ITER_MORPH_CLOSE = 1                   # 闭运算迭代次数
 MIN_CONTOUR_AREA = 300                 # 最小有效轮廓面积 (像素)
 
 
+UI_DEF_COLOR_MODE = 1                # 0: HSV，1: LAB
+
+# HSV
 UI_DEF_HUE_TOL = 12
 UI_DEF_SAT_MIN = 54
 UI_DEF_VAL_MIN = 0
@@ -63,6 +66,11 @@ UI_DEF_MIN_RAD = 15
 UI_DEF_MAX_RAD = 60
 UI_DEF_CONFIRM_FRM = 4
 UI_DEF_LOST_FRM = 10
+
+# LAB
+UI_DEF_LAB_A_MIN = 145           
+UI_DEF_LAB_L_MIN = 20            
+
 
 # =================  点云与几何算法 =================
 MIN_APPLE_RADIUS_M = 0.015           # 限制目标的最小半径 1.5cm

@@ -13,9 +13,19 @@ class VisionProcessor:
         self.mask_history = []
 
     def _create_trackbars(self):
+        
+        cv2.createTrackbar("Mode 0:HSV 1:LAB", self.window_name, config.UI_DEF_COLOR_MODE, 1, lambda x: None)
+
+        
+        cv2.createTrackbar("LAB A Min", self.window_name, config.UI_DEF_LAB_A_MIN, 255, lambda x: None)
+        cv2.createTrackbar("LAB L Min", self.window_name, config.UI_DEF_LAB_L_MIN, 255, lambda x: None)
+
+
         cv2.createTrackbar("Hue Tol", self.window_name, config.UI_DEF_HUE_TOL, 30, lambda x: None)
         cv2.createTrackbar("Sat Min", self.window_name, config.UI_DEF_SAT_MIN, 255, lambda x: None)
         cv2.createTrackbar("Val Min", self.window_name, config.UI_DEF_VAL_MIN, 255, lambda x: None)
+
+
         cv2.createTrackbar("Time Win", self.window_name, config.UI_DEF_TIME_WIN, 15, lambda x: None)   
         cv2.createTrackbar("Norm Angle", self.window_name, config.UI_DEF_NORM_ANGLE, 30, lambda x: None) 
         cv2.createTrackbar("Min Rad", self.window_name, config.UI_DEF_MIN_RAD, config.UI_DEF_MAX_RAD, lambda x: None)
@@ -30,9 +40,16 @@ class VisionProcessor:
         cv2.createTrackbar("Iter Morph Close", self.window_name, config.ITER_MORPH_CLOSE, 10, lambda x: None)
 
     def process(self, bgr_img, d_arr):
+        
+        color_mode = cv2.getTrackbarPos("Mode 0:HSV 1:LAB", self.window_name)
+
+        lab_a_min = cv2.getTrackbarPos("LAB A Min", self.window_name)
+        lab_l_min = cv2.getTrackbarPos("LAB L Min", self.window_name)
+
         hue_tol = cv2.getTrackbarPos("Hue Tol", self.window_name)
         sat_min = cv2.getTrackbarPos("Sat Min", self.window_name)
         val_min = cv2.getTrackbarPos("Val Min", self.window_name)
+
         time_win = max(1, cv2.getTrackbarPos("Time Win", self.window_name))
         
         norm_angle = cv2.getTrackbarPos("Norm Angle", self.window_name)
@@ -57,11 +74,25 @@ class VisionProcessor:
             blur_k = blur_k_val
 
         # 颜色提取
-        hsv_img = cv2.cvtColor(cv2.GaussianBlur(bgr_img, (blur_k, blur_k), 0), cv2.COLOR_BGR2HSV)
-        mask1 = cv2.inRange(hsv_img, np.array([0, sat_min, val_min]), np.array([hue_tol, 255, 255]))
-        mask2 = cv2.inRange(hsv_img, np.array([180 - hue_tol, sat_min, val_min]), np.array([180, 255, 255]))
-        red_mask = cv2.bitwise_or(mask1, mask2)
+        blurred_img = cv2.GaussianBlur(bgr_img, (blur_k, blur_k), 0)
+
+        if color_mode == 0:
+            # HSV
+            hsv_img = cv2.cvtColor(blurred_img, cv2.COLOR_BGR2HSV)
+            mask1 = cv2.inRange(hsv_img, np.array([0, sat_min, val_min]), np.array([hue_tol, 255, 255]))
+            mask2 = cv2.inRange(hsv_img, np.array([180 - hue_tol, sat_min, val_min]), np.array([180, 255, 255]))
+            red_mask = cv2.bitwise_or(mask1, mask2)
+        else:
+            # LAB
+            lab_img = cv2.cvtColor(blurred_img, cv2.COLOR_BGR2Lab)
+            L, a, b = cv2.split(lab_img)
+            
+            _, a_mask = cv2.threshold(a, lab_a_min, 255, cv2.THRESH_BINARY)
         
+            _, l_mask = cv2.threshold(L, lab_l_min, 255, cv2.THRESH_BINARY)
+            
+            red_mask = cv2.bitwise_and(a_mask, l_mask)
+
         red_mask = cv2.morphologyEx(red_mask, cv2.MORPH_OPEN, (morph_open_val,morph_open_val), iterations=iter_morph_open)
         red_mask = cv2.morphologyEx(red_mask, cv2.MORPH_CLOSE, (morph_close_val,morph_close_val), iterations=iter_morph_close)
 
@@ -71,6 +102,7 @@ class VisionProcessor:
         # for cnt in contours:
         #     if cv2.contourArea(cnt) > config.MIN_CONTOUR_AREA: 
         #         cv2.drawContours(final_mask, [cnt], -1, 255, -1)
+
         _, labels, stats, _ = cv2.connectedComponentsWithStats(red_mask, connectivity=8)
         areas = stats[:, cv2.CC_STAT_AREA]
         keep_labels = np.where(areas > config.MIN_CONTOUR_AREA)[0]

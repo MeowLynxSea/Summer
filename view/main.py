@@ -165,6 +165,5 @@ def test_playback():
 
 
 if __name__ == "__main__":
-
-    test_playback()
+    main()
     
