@@ -4,9 +4,24 @@ class RobotArm:
     def __init__(self, config_str):
         self.modules = []
         self._parse_config(config_str)
+        
+        self.q_current = np.array([m['L'] if m['type'] == 'A' else 0.0 for m in self.modules], dtype=float)
+        self.q_target = self.q_current.copy()
+
+        self.v_limits = np.array([m['speed'] for m in self.modules])
+        self.q_min = np.zeros(len(self.modules))
+        self.q_max = np.array([m['L'] if m['type'] == 'A' else np.pi for m in self.modules])
+        for i, m in enumerate(self.modules):
+            if m['type'] == 'B': self.q_min[i] = -np.pi
+
+
         self.rad_A = 0.15 
         self.rad_B = 0.10 
         self.gravity = np.array([0.0, 0.0, -9.81])
+
+        
+        self.collision_locked = False
+        self.default_q = self.q_current.copy()
 
     def _parse_config(self, config_str):
         for line in config_str.strip().split('\n'):
@@ -180,3 +195,79 @@ class RobotArm:
                     if d < (segs[i]['radius'] + segs[j]['radius']):
                         return True
         return False
+    
+    def get_ik_data(self, states):
+        p, R_accum = np.array([0., 0., 0.]), np.eye(3)
+        p_list = []  # P_{i-1}
+        z_list = []  # z_{i-1}
+        
+        for i, m in enumerate(self.modules):
+            val = states[i]
+            p_list.append(p.copy())
+            
+            if m['type'] == 'A':
+                d_glob = R_accum @ (m['n1'] / np.linalg.norm(m['n1']))
+                z_list.append(d_glob)
+                p = p + d_glob * val
+            else:
+                n1_glob = R_accum @ m['n1']
+                z_list.append(n1_glob)
+                R_local = GeometryEngine.rodrigues_rotation(m['n1'], val)
+                R_accum = R_accum @ R_local
+                v_rod = R_accum @ m['n2']
+                p = p + v_rod * m['L']
+        
+        p_ee = p
+        z_ee = z_list[-1] if self.modules[-1]['type'] == 'A' else (R_accum @ self.modules[-1]['n2'])
+        
+        return p_ee, z_ee, p_list, z_list
+    
+    def get_jacobian(self, p_ee, p_list, z_list):
+        n = len(self.modules)
+        J = np.zeros((6, n))
+        for i in range(n):
+            if self.modules[i]['type'] == 'A':
+                J[:3, i] = z_list[i]
+                J[3:, i] = 0
+            else:
+                J[:3, i] = np.cross(z_list[i], p_ee - p_list[i])
+                J[3:, i] = z_list[i]
+        return J
+    
+    def update(self, dt):
+        if self.collision_locked:
+            return "LOCKED"
+
+        delta = self.q_target - self.q_current
+        if np.all(np.abs(delta) < 1e-8):
+            return False
+
+        max_step = self.v_limits * dt
+        step = np.clip(delta, -max_step, max_step)
+        next_q = self.q_current + step
+        
+        if self.check_collision(next_q, self.q_current):
+            self.collision_locked = True
+            return "COLLISION"
+            
+        self.q_current = next_q
+        return True
+
+    def reset(self):
+        self.q_current = self.default_q.copy()
+        self.q_target = self.default_q.copy()
+        self.collision_locked = False
+    
+    def set_target(self, target_q):
+        self.q_target = np.clip(target_q, self.q_min, self.q_max)
+
+    def get_current_q(self):
+        return self.q_current
+    
+    def get_ee_pose(self):
+        """
+            p_ee: 末端位置 np.array([x, y, z])
+            z_ee: 末端指向单位向量 np.array([nx, ny, nz])
+        """
+        p_ee, z_ee, _, _ = self.get_ik_data(self.q_current)
+        return p_ee, z_ee
