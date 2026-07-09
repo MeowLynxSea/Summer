@@ -86,8 +86,8 @@ UI_DEF_SADDLE_RATIO= 15
 # =================  点云与几何算法 =================
 MIN_APPLE_RADIUS_M = 0.015           # 限制目标的最小半径 1.5cm
 VOXEL_SIZE = 0.005                   # 点云下采样体素大小
-NORMAL_SEARCH_RADIUS = 0.03          # 计算法线时所用的 KDTree 搜索半径
-NORMAL_MAX_NN = 30                   # 法线估计最大邻居数
+NORMAL_SEARCH_RADIUS = 0.05         # 计算法线时所用的 KDTree 搜索半径
+NORMAL_MAX_NN = 100                   # 法线估计最大邻居数
 KDTREE_SEARCH_RADIUS = 0.012         # 发现过滤时用的 KDTree 搜索半径
 DBSCAN_EPS = 0.015                   # DBSCAN 聚类距离
 DBSCAN_MIN_POINTS = 15               # DBSCAN 聚类最少点数

@@ -88,6 +88,8 @@ class SceneRenderer:
 
     def generate_normal_map(self, d_arr):
         h, w = d_arr.shape
+        
+     
         z = d_arr.astype(np.float32) / 1000.0
         u = np.arange(w)
         v = np.arange(h)
@@ -125,7 +127,7 @@ class SceneRenderer:
         )
         depth_colormap[d_arr == 0] = [0, 0, 0] 
         
-        normal_map = self.generate_normal_map(d_arr)
+        # normal_map = self.generate_normal_map(d_arr)
         seg_debug_img = bgr_img.copy()
 
         for i, (center, radius, cluster_pts) in enumerate(confirmed_apples):
@@ -152,7 +154,7 @@ class SceneRenderer:
         cv2.imshow("Segmentation Result", cv2.flip(seg_debug_img, 1))
         cv2.imshow("Astra RGB", cv2.flip(bgr_img, 1))
         cv2.imshow("Astra Depth", cv2.flip(depth_colormap, 1))
-        cv2.imshow("Normal Map", cv2.flip(normal_map, 1))
+        # cv2.imshow("Normal Map", cv2.flip(normal_map, 1))
         cv2.imshow("Red Extraction", cv2.flip(red_extracted_img, 1))
     
     def release(self):

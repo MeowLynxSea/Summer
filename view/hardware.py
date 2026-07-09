@@ -4,7 +4,9 @@ from openni import _openni2 as c_api
 import cv2
 from config import OPENNI2_REDIST_PATH, IMG_WIDTH, IMG_HEIGHT
 import math
-
+from pyorbbecsdk import Pipeline, Config, OBSensorType, OBFormat, OBAlignMode, OBPropertyID
+from pyorbbecsdk import Context, TemporalFilter, HoleFillingFilter
+import config
 
 class AstraCamera:
     def __init__(self):
@@ -58,3 +60,70 @@ class AstraCamera:
         self.color_stream.stop()
         self.dev.close()
         openni2.unload()
+
+
+class GeminiCamera:
+    def __init__(self):
+        print("正在初始化 Gemini 305")
+        try:
+            self.pipeline = Pipeline()
+            self.config_obj = Config()
+
+            color_profile = self.pipeline.get_stream_profile_list(OBSensorType.COLOR_SENSOR).get_default_video_stream_profile()
+            depth_profile = self.pipeline.get_stream_profile_list(OBSensorType.DEPTH_SENSOR).get_default_video_stream_profile()
+
+            self.width = color_profile.get_width()
+            self.height = color_profile.get_height()
+
+            self.config_obj.enable_stream(color_profile)
+            self.config_obj.enable_stream(depth_profile)
+            self.config_obj.set_align_mode(OBAlignMode.HW_MODE) 
+
+            self.pipeline.start(self.config_obj)
+
+            param = self.pipeline.get_camera_param()
+            
+            config.FX = param.rgb_intrinsic.fx
+            config.FY = param.rgb_intrinsic.fy
+            config.CX = param.rgb_intrinsic.cx
+            config.CY = param.rgb_intrinsic.cy
+            
+            config.IMG_WIDTH = self.width
+            config.IMG_HEIGHT = self.height
+
+            print(f"重新生成投影网格以适配 {self.width}x{self.height}...")
+            u, v = np.meshgrid(np.arange(self.width), np.arange(self.height))
+            config.U = u.flatten()
+            config.V = v.flatten()
+
+            print(f"系统参数已更新: FX={config.FX:.2f}, CX={config.CX:.2f}")
+
+        except Exception as e:
+            print(f"Gemini 305 初始化失败: {e}")
+
+    def get_intrinsics(self):
+        return self.fx, self.fy, self.cx, self.cy
+    
+    def get_frames(self):
+        frames = self.pipeline.wait_for_frames(100)
+        if not frames: return None, None, None
+        
+        depth_frame = frames.get_depth_frame()
+        color_frame = frames.get_color_frame()
+        if not depth_frame or not color_frame: return None, None, None
+     
+        scale = depth_frame.get_depth_scale()
+
+        d_raw = np.frombuffer(depth_frame.get_data(), dtype=np.uint16).copy()
+        d_arr = d_raw.reshape((self.height, self.width)).astype(np.float32)*scale
+        
+
+        c_raw = np.frombuffer(color_frame.get_data(), dtype=np.uint8).copy()
+        c_yuv = c_raw.reshape((self.height, self.width, 2))
+        bgr_img = cv2.cvtColor(c_yuv, cv2.COLOR_YUV2BGR_YUYV)
+        c_arr = cv2.cvtColor(bgr_img, cv2.COLOR_BGR2RGB)
+
+        return bgr_img, c_arr, d_arr
+
+    def release(self):
+        self.pipeline.stop()

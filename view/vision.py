@@ -202,7 +202,6 @@ class VisionProcessor:
             return d_arr
         
         d_float = d_arr.astype(np.float32)
-        
         # 双边滤波
         # d: 过滤核
         # sigmaColor: 深度差阈值，大于此值的边缘会被保留

@@ -3,20 +3,20 @@ import cv2
 import numpy as np
 import open3d as o3d
 import config
-from hardware import AstraCamera
-from camera_3d import FPSCamera
-from tracker import AppleTracker
-from alg import segment_and_filter_apples
-from vision import VisionProcessor
-from renderer import SceneRenderer
-from recorder import DataRecorder
-from virtualCamera import VirtualCamera
+from hardware import AstraCamera,GeminiCamera
 import time
 import os
 
 def main():
-    cam_hardware = AstraCamera()
-    config.FX, config.FY, config.CX, config.CY = cam_hardware.get_intrinsics() #更新内参
+    cam_hardware = GeminiCamera()  
+    from renderer import SceneRenderer
+    from tracker import AppleTracker
+    from vision import VisionProcessor
+    from alg import segment_and_filter_apples
+    from camera_3d import FPSCamera
+
+    
+    # config.FX, config.FY, config.CX, config.CY = cam_hardware.get_intrinsics() #更新内参
     print("相机内参：", config.FX, config.FY, config.CX, config.CY)
 
     fps_camera = FPSCamera()
