@@ -2,9 +2,27 @@ import time
 from robot_model import RobotArm
 from visual import ArmVisualizer
 from IK import RobotIKSolver
+from trajectory import EndEffectorPath, TrajectoryFollower
 import numpy as np
 import matplotlib.pyplot as plt
-import math
+
+
+def build_demo_trajectory(start_pos, start_dir):
+    start_pos = np.asarray(start_pos, dtype=float)
+    start_dir = np.asarray(start_dir, dtype=float)
+
+    return EndEffectorPath.from_waypoints(
+        [
+            (start_pos, start_dir),
+            (np.array([8.2, 0.8, 1.2]), np.array([-1.0, 0.1, 0.2])),
+            (np.array([6.0, 1.8, 2.8]), np.array([-1.0, 0.2, 0.4])),
+            (np.array([3.8, 2.8, 4.3]), np.array([-0.8, 0.5, 0.6])),
+            (np.array([1.0, 3.2, 5.0]), np.array([0.0, 1.0, 1.0])),
+        ],
+        min_duration=0.25,
+        linear_speed=1.2,
+        angular_speed=1.5,
+    )
 
 if __name__ == "__main__":
     # A [方向n] [行程L] [杆件质量] [下一模组质量] [最大力矩] [速度]
@@ -20,11 +38,9 @@ if __name__ == "__main__":
     solver = RobotIKSolver(robot)
     viz = ArmVisualizer(robot)
 
-    apple_pos = np.array([1.0, 3.2, 5.0])
-    grab_dir = np.array([0.0, 1.0, 1.0])
-
-    current_q = np.zeros(len(robot.modules))
-    target_q = solver.solve(apple_pos, grab_dir, current_q)
+    follower = TrajectoryFollower()
+    start_pos, start_dir = robot.get_ee_pose()
+    follower.set_trajectory(build_demo_trajectory(start_pos, start_dir))
     
     plt.ion()
 
@@ -36,31 +52,21 @@ if __name__ == "__main__":
         last_wall_time = now_wall_time
         t += dt
         
-        if not robot.collision_locked:
-            # apple_pos += np.array([0.0, 0.0, 0.1]) * dt
-            grab_dir = np.array([np.cos(0.5*t), np.sin(0.5*t), 1.0])
-        # # None以供手动调整滑条
-        # s1 = None
-        # s2 = None
-        # s3 = None
-        # theta1 = math.pi * math.sin(t)
-        # # theta2 = 0.5 * math.cos(t * 2)
-
-        # theta3 = None
-
-        pee,zee = robot.get_ee_pose()
-        if (np.linalg.norm(pee - apple_pos) > 0.1 or
-                np.linalg.norm(zee- grab_dir) > 0.1):
-            print("new apple")
-            current_q = robot.get_current_q()
-            target_q = solver.solve(apple_pos, grab_dir, current_q)
+        current_q = robot.get_current_q()
+        ee_pos, ee_dir = robot.get_ee_pose()
+        target_pos, target_dir = follower.update_target(
+            ee_pos,
+            ee_dir,
+            pos_tol=0.12,
+            dir_tol=0.12,
+        )
         
-        
-        robot.set_target(target_q) 
+        q_cmd = solver.solve(target_pos, target_dir, current_q, max_iter=40, tol=1e-3)
+
+        robot.set_target(q_cmd)
         status = robot.update(dt)
         if status == "COLLISION":
             print(f"检测到碰撞！t={t:.2f}")
-
-        viz.set_target_visual(apple_pos, grab_dir)
+        viz.set_target_visual(target_pos, target_dir)
         viz.render(t)
         plt.pause(0.001)
