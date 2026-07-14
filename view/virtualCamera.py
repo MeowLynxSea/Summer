@@ -49,6 +49,26 @@ class VirtualCamera:
     def get_intrinsics(self):
         return self.fx, self.fy, self.cx, self.cy
 
+    def get_total_frames(self):
+        return max(1, int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT)))
+
+    def get_current_frame_index(self):
+        # POS_FRAMES 是即将被读取的下一帧索引；最近一次显示的帧 = idx - 1
+        # 当 POS_FRAMES == 0（刚 seek 到开头）时，认为当前就是第 0 帧
+        pos = int(self.cap.get(cv2.CAP_PROP_POS_FRAMES))
+        return max(0, pos - 1) if pos > 0 else 0
+
+    def get_fps(self):
+        fps = self.cap.get(cv2.CAP_PROP_FPS)
+        return fps if fps and fps > 0 else 30.0
+
+    def seek(self, frame_idx):
+        """跳到指定帧（0-based）。同步 .bin 文件指针。"""
+        total = self.get_total_frames()
+        frame_idx = max(0, min(int(frame_idx), total - 1))
+        self.cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
+        self.bin_file.seek(frame_idx * self.frame_size)
+
     def get_frames(self):
         ret, bgr_img = self.cap.read()
         depth_data = self.bin_file.read(self.frame_size)
