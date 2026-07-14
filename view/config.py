@@ -1,17 +1,23 @@
 import numpy as np
 import os
+import sys
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 PARENT_DIR = os.path.dirname(BASE_DIR)
 # ================= 路径配置 =================
+IS_WINDOWS = sys.platform.startswith("win")
+IS_MACOS = sys.platform == "darwin"
+
+# Windows 上的 OpenNI2 SDK 路径（Astra/Astra Pro 相机需要）。
+# macOS / Linux 上此路径不存在，使用相机时再校验。
 OPENNI2_REDIST_PATH = os.path.join(
     PARENT_DIR, 
     "OpenNI_2.3.0.86_202210111950_4c8f5aa4_beta6_windows", 
     "Win64-Release", 
     "sdk", 
     "libs"
-)
+) if IS_WINDOWS else ""
 
 # 内参
 FX, FY = 575.0, 575.0

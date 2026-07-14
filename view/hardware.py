@@ -1,15 +1,41 @@
+import sys
 import numpy as np
-from openni import openni2
-from openni import _openni2 as c_api
 import cv2
-from config import OPENNI2_REDIST_PATH, IMG_WIDTH, IMG_HEIGHT
+from config import OPENNI2_REDIST_PATH, IMG_WIDTH, IMG_HEIGHT, IS_WINDOWS
 import math
-from pyorbbecsdk import Pipeline, Config, OBSensorType, OBFormat, OBAlignMode, OBPropertyID
-from pyorbbecsdk import Context, TemporalFilter, HoleFillingFilter
+
+# Windows 专用依赖：OpenNI2 (Astra/Astra Pro) 与 pyorbbecsdk (Orbbec Gemini)
+# 在 macOS / Linux 上不强制安装，只有真用到对应相机时才会提示。
+if IS_WINDOWS:
+    try:
+        from openni import openni2
+        from openni import _openni2 as c_api
+    except Exception as _e:
+        openni2 = None
+        c_api = None
+        _OPENNI_IMPORT_ERROR = _e
+    try:
+        from pyorbbecsdk import Pipeline, Config, OBSensorType, OBFormat, OBAlignMode, OBPropertyID
+        from pyorbbecsdk import Context, TemporalFilter, HoleFillingFilter
+    except Exception as _e:
+        Pipeline = Config = OBSensorType = OBFormat = OBAlignMode = OBPropertyID = None
+        Context = TemporalFilter = HoleFillingFilter = None
+        _ORBBEC_IMPORT_ERROR = _e
+else:
+    openni2 = None
+    c_api = None
+    Pipeline = Config = OBSensorType = OBFormat = OBAlignMode = OBPropertyID = None
+    Context = TemporalFilter = HoleFillingFilter = None
+
 import config
 
 class AstraCamera:
     def __init__(self):
+        if not IS_WINDOWS or openni2 is None:
+            raise RuntimeError(
+                "AstraCamera 仅支持 Windows。当前平台: "
+                f"{sys.platform}。请在 Mac 上使用 MacCamera / RealSense / VirtualCamera。"
+            )
         print("初始化 OpenNI2")
         try:
             openni2.initialize(OPENNI2_REDIST_PATH)
@@ -64,6 +90,11 @@ class AstraCamera:
 
 class GeminiCamera:
     def __init__(self):
+        if not IS_WINDOWS or Pipeline is None:
+            raise RuntimeError(
+                "GeminiCamera 依赖 pyorbbecsdk（Orbbec 官方 SDK），目前只提供 Windows 版本。"
+                f"当前平台: {sys.platform}。请在 Mac 上使用 MacCamera / RealSense / VirtualCamera。"
+            )
         print("正在初始化 Gemini 305")
         try:
             self.pipeline = Pipeline()
@@ -123,6 +154,115 @@ class GeminiCamera:
         bgr_img = cv2.cvtColor(c_yuv, cv2.COLOR_YUV2BGR_YUYV)
         c_arr = cv2.cvtColor(bgr_img, cv2.COLOR_BGR2RGB)
 
+        return bgr_img, c_arr, d_arr
+
+    def release(self):
+        self.pipeline.stop()
+
+
+# =====================================================================
+# 以下为 macOS / Linux 友好的相机后端
+# 接口与 Windows 版本完全一致：get_intrinsics() / get_frames() / release()
+# =====================================================================
+
+class MacRGBCamera:
+    """macOS / Linux 上的普通 RGB 摄像头（无深度）。
+
+    - 优先使用 AVFoundation 后端 (macOS)
+    - 失败回退到默认后端
+    - 深度图填充为 0（毫米），几何分割会被关闭，pipeline 退化为纯 2D 检测
+    """
+    def __init__(self, index=0, width=640, height=480):
+        if sys.platform == "darwin":
+            self.cap = cv2.VideoCapture(index, cv2.CAP_AVFOUNDATION)
+        else:
+            self.cap = cv2.VideoCapture(index)
+        if not self.cap.isOpened():
+            # 回退默认后端
+            self.cap = cv2.VideoCapture(index)
+        if not self.cap.isOpened():
+            raise RuntimeError(f"无法打开摄像头 index={index}")
+
+        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
+        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
+        self.width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH)) or width
+        self.height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT)) or height
+
+        # 写死一组合理的内参，方便 2D 流程
+        self.fx, self.fy = 575.0, 575.0
+        self.cx, self.cy = self.width / 2.0, self.height / 2.0
+        print(f"MacRGBCamera 已打开 {self.width}x{self.height}（无深度，几何分割将不可用）")
+
+    def get_intrinsics(self):
+        return self.fx, self.fy, self.cx, self.cy
+
+    def get_frames(self):
+        ret, bgr_img = self.cap.read()
+        if not ret or bgr_img is None:
+            return None, None, None
+        # 构造空深度图（mm）
+        d_arr = np.zeros((bgr_img.shape[0], bgr_img.shape[1]), dtype=np.float32)
+        c_arr = cv2.cvtColor(bgr_img, cv2.COLOR_BGR2RGB)
+        return bgr_img, c_arr, d_arr
+
+    def release(self):
+        self.cap.release()
+
+
+class RealSenseCamera:
+    """Intel RealSense D400 系列 (D435 / D455 ...) 在 macOS 上的后端。
+
+    需要安装 pyrealsense2：
+        pip install pyrealsense2
+
+    若库未安装，给出明确报错。
+    """
+    def __init__(self, width=640, height=480, fps=30):
+        try:
+            import pyrealsense2 as rs
+        except Exception as e:
+            raise RuntimeError(
+                "RealSenseCamera 需要 pyrealsense2，请在 Mac 上先 `pip install pyrealsense2`。\n"
+                f"原始错误: {e}"
+            )
+        self.rs = rs
+        self.pipeline = rs.pipeline()
+        cfg = rs.config()
+        cfg.enable_stream(rs.stream.color, width, height, rs.format.bgr8, fps)
+        cfg.enable_stream(rs.stream.depth, width, height, rs.format.z16, fps)
+        profile = self.pipeline.start(cfg)
+
+        color_stream = profile.get_stream(rs.stream.color).as_video_stream_profile()
+        intr = color_stream.get_intrinsics()
+        self.width, self.height = intr.width, intr.height
+        self.fx, self.fy = intr.fx, intr.fy
+        self.cx, self.cy = intr.cx, intr.cy
+
+        # 同步到全局 config，便于 renderer 使用
+        config.FX, config.FY = self.fx, self.fy
+        config.CX, config.CY = self.cx, self.cy
+        config.IMG_WIDTH, config.IMG_HEIGHT = self.width, self.height
+        u, v = np.meshgrid(np.arange(self.width), np.arange(self.height))
+        config.U, config.V = u.flatten(), v.flatten()
+
+        self.align = rs.align(rs.stream.color)
+        print(f"RealSenseCamera 已打开 {self.width}x{self.height}")
+
+    def get_intrinsics(self):
+        return self.fx, self.fy, self.cx, self.cy
+
+    def get_frames(self):
+        frames = self.pipeline.wait_for_frames()
+        frames = self.align.process(frames)
+        color_frame = frames.get_color_frame()
+        depth_frame = frames.get_depth_frame()
+        if not color_frame or not depth_frame:
+            return None, None, None
+
+        bgr_img = np.asanyarray(color_frame.get_data())
+        d_raw = np.asanyarray(depth_frame.get_data())
+        d_arr = d_raw.astype(np.float32)  # RealSense depth 已经是 mm
+        c_arr = cv2.cvtColor(bgr_img, cv2.COLOR_BGR2RGB)
         return bgr_img, c_arr, d_arr
 
     def release(self):

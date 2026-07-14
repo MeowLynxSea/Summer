@@ -1,27 +1,35 @@
+import sys
 import numpy as np
 from pynput import keyboard, mouse
-import ctypes
 
-from config import CAMERA_MOUSE_SENSITIVITY, CAMERA_MOVE_SPEED
+from config import CAMERA_MOUSE_SENSITIVITY, CAMERA_MOVE_SPEED, IS_WINDOWS
+
+if IS_WINDOWS:
+    import ctypes
 
 
 class FPSCamera:
     def __init__(self):
-        self.pos = np.array([0.0, 0.0, -0.6]) 
+        self.pos = np.array([0.0, 0.0, -0.6])
         self.yaw, self.pitch = 0.0, 0.0
         self.look_at = np.array([0.0, 0.0, 1.0])
         self.right = np.array([1.0, 0.0, 0.0])
         self.keys = set()
         self.mouse_sensitivity = CAMERA_MOUSE_SENSITIVITY
         self.move_speed = CAMERA_MOVE_SPEED
-        self.lock_mouse = True
+        # macOS 下系统拦截鼠标强制居中，默认关掉以避免卡顿
+        self.lock_mouse = IS_WINDOWS
         self.running = True
-        self.last_apple_count = -1 
-        
-        user32 = ctypes.windll.user32
-        self.screen_w, self.screen_h = user32.GetSystemMetrics(0), user32.GetSystemMetrics(1)
+        self.last_apple_count = -1
+
+        if IS_WINDOWS:
+            user32 = ctypes.windll.user32
+            self.screen_w, self.screen_h = user32.GetSystemMetrics(0), user32.GetSystemMetrics(1)
+        else:
+            # macOS / Linux 暂用固定窗口尺寸
+            self.screen_w, self.screen_h = 1280, 720
         self.center_x, self.center_y = self.screen_w // 2, self.screen_h // 2
-        
+
         self.mouse_ctrl = mouse.Controller()
         self.listener = keyboard.Listener(on_press=self._on_press, on_release=self._on_release)
         self.listener.start()

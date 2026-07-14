@@ -156,6 +156,7 @@ class SceneRenderer:
         cv2.imshow("Astra Depth", cv2.flip(depth_colormap, 1))
         # cv2.imshow("Normal Map", cv2.flip(normal_map, 1))
         cv2.imshow("Red Extraction", cv2.flip(red_extracted_img, 1))
+        cv2.imshow("Red Extraction Result", cv2.flip(red_extracted_img, 1))
     
     def release(self):
         self.vis.destroy_window()

@@ -1,0 +1,9 @@
+# macOS 依赖（不含仅 Windows 的 openni2 / pyorbbecsdk）
+# Python 3.10~3.12 推荐；3.13 可能与某些库不兼容
+numpy
+opencv-python>=4.8
+scipy
+open3d>=0.18
+pynput
+# 仅当使用 Intel RealSense 时再装：
+# pyrealsense2
