@@ -29,6 +29,7 @@ if __name__ == "__main__":
     # B [旋转轴n1] [零位朝向n2] [杆长L] [杆件质量] [下一模组质量] [最大力矩] [速度]
     # 最后一个模组质量即为末端负载质量
     config = """
+    A 1 0 0 5 1 1 10 4
     B 0 0 1  1 0 0  3  0.6 0.9 35 1.2
     B 0 1 0  1 0 0  3  0.6 0.9 35 1.2
     B 0 1 0  1 0 0  3  0.6 0.9 35 1.2
@@ -63,7 +64,7 @@ if __name__ == "__main__":
         
         q_cmd = solver.solve(target_pos, target_dir, current_q, max_iter=40, tol=1e-3)
 
-        robot.set_target(q_cmd)
+        # robot.set_target(q_cmd)
         status = robot.update(dt)
         if status == "COLLISION":
             print(f"检测到碰撞！t={t:.2f}")

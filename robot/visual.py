@@ -147,22 +147,22 @@ class ArmVisualizer:
             else:
                 self.traj_line, = self.ax.plot(t_pts[:, 0], t_pts[:, 1], t_pts[:, 2], 'k--', lw=1, alpha=0.3)
 
-        # for load in joint_torques:
-        #     text = f"{load['type']}{load['module_index'] + 1} |M|={load['torque_magnitude']:.1f}Nm"
-        #     if load['type'] == 'B':
-        #         text += f"\n|Taxis|={load['axis_torque']:.1f}Nm"
-        #     text += f"\nlimit={load['max_torque']:.1f}Nm"
+        for load in joint_torques:
+            text = f"{load['type']}{load['module_index'] + 1} |M|={load['torque_magnitude']:.1f}Nm"
+            if load['type'] == 'B':
+                text += f"\n|Taxis|={load['axis_torque']:.1f}Nm"
+            text += f"\nlimit={load['max_torque']:.1f}Nm"
             
-        #     box_face = '#ffdddd' if load['overloaded'] else 'white'
-        #     box_edge = '#cc0000' if load['overloaded'] else '#666666'
-        #     text_color = '#aa0000' if load['overloaded'] else 'black'
+            box_face = '#ffdddd' if load['overloaded'] else 'white'
+            box_edge = '#cc0000' if load['overloaded'] else '#666666'
+            text_color = '#aa0000' if load['overloaded'] else 'black'
             
-        #     label = self.ax.text(
-        #         load['label_pos'][0], load['label_pos'][1], load['label_pos'][2],
-        #         text, fontsize=8, color=text_color, ha='left', va='bottom',
-        #         bbox=dict(boxstyle='round,pad=0.25', facecolor=box_face, alpha=0.85, edgecolor=box_edge)
-        #     )
-        #     self.torque_texts.append(label)
+            label = self.ax.text(
+                load['label_pos'][0], load['label_pos'][1], load['label_pos'][2],
+                text, fontsize=8, color=text_color, ha='left', va='bottom',
+                bbox=dict(boxstyle='round,pad=0.25', facecolor=box_face, alpha=0.85, edgecolor=box_edge)
+            )
+            self.torque_texts.append(label)
 
         if self.target_marker_pos is not None:
             m_target = GeometryEngine.get_sphere_mesh(self.target_marker_pos, 0.15)
